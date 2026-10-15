@@ -1,0 +1,11 @@
+{
+  "name": "Offline Video Cutter",
+  "short_name": "Video Cutter",
+  "description": "Browser-based offline video cutter",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#101827",
+  "orientation": "portrait"
+}
