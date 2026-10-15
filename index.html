@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="my">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101827">
+<meta name="description" content="Offline-first browser video cutter">
+<link rel="manifest" href="./manifest.webmanifest">
+<title>Offline Video Cutter</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--panel:#121d2f;--line:#29364b;--muted:#9eacc2;--text:#f3f6fc;--accent:#67e8c2;--blue:#72a7ff}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#0b1220,#101a2b);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Noto Sans Myanmar",sans-serif}
+main{max-width:960px;margin:auto;padding:16px 12px 36px}.hero h1{font-size:clamp(25px,5vw,36px);margin:0 0 5px}.hero p{margin:0;color:var(--muted)}
+.panel{background:rgba(18,29,47,.97);border:1px solid var(--line);border-radius:17px;padding:15px;margin:12px 0}h2{font-size:18px;margin:0 0 11px}
+.row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.row>*{flex:1;min-width:115px}
+button,.filelabel{border:0;border-radius:11px;padding:11px 13px;font:inherit;font-weight:650;cursor:pointer;background:var(--accent);color:#082019;text-align:center}
+button.secondary,.filelabel.secondary{background:#24334a;color:var(--text);border:1px solid #3a4b65}
+button:disabled{opacity:.45;cursor:not-allowed}input[type=file]{display:none}
+input[type=text],select{width:100%;background:#0b1423;border:1px solid #34445b;color:var(--text);border-radius:9px;padding:10px;font:inherit}
+video{display:block;width:100%;max-height:45vh;background:#05080e;border-radius:12px;margin-top:11px}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}.field label{display:block;font-size:13px;color:var(--muted);margin-bottom:5px}
+.segment{border:1px solid var(--line);border-radius:12px;padding:11px;margin-top:9px;background:#0d1727}
+.seghead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}.small{padding:7px 9px;font-size:13px}
+.muted,.status,.fileinfo{color:var(--muted);font-size:13px}.fileinfo{margin-top:8px;overflow-wrap:anywhere}.status{white-space:pre-wrap;margin-top:10px}
+.note{border-left:3px solid var(--blue);padding:9px 11px;background:#101c30;border-radius:5px;color:#cbd6e8;font-size:13px}
+progress{width:100%;height:8px;margin-top:10px;accent-color:var(--accent)}
+a.download{display:block;color:var(--accent);padding:9px 0;overflow-wrap:anywhere}
+.choice{border:1px solid var(--line);padding:11px;border-radius:12px;margin-top:9px}
+.choice label{display:flex;gap:8px;align-items:flex-start}
+.choice input{margin-top:5px;accent-color:var(--accent)}
+@media(max-width:520px){.panel{padding:12px}.row>*{min-width:100%}.fields{gap:8px}}
+</style>
+</head>
+<body>
+<main>
+<header class="hero"><h1>✂️ Offline Video Cutter</h1><p>အင်တာနက်မလိုဘဲ ဖြတ်တောက်ရန် · ဖုန်းထဲသိမ်းရန် နည်းလမ်း ၂ မျိုး</p></header>
+<section class="panel">
+<h2>၁။ Video ရွေးပါ</h2>
+<div class="row">
+<label class="filelabel" for="videoFile">📁 Video ရွေးရန်</label>
+<button class="secondary" id="clearBtn" type="button">ဖိုင်ဖယ်ရှားရန်</button>
+</div>
+<input id="videoFile" type="file" accept="video/*">
+<div class="fileinfo" id="fileInfo">Video မရွေးရသေးပါ။</div>
+<video id="preview" controls playsinline></video>
+<p class="muted">Video ကို သင့်ဖုန်းထဲမှာပဲ ဖွင့်ပြီး ဖြတ်တောက်ရန် ကြိုးစားပါမည်။ Server သို့ Video Upload မလုပ်ပါ။</p>
+</section>
+<section class="panel">
+<h2>၂။ အချိန်သတ်မှတ်ပါ</h2>
+<div class="note">ပုံစံ: HH:MM:SS.mmm — ဥပမာ 00:01:25.350 မှ 00:02:10.750။ မီလီစက္ကန့်ရိုက်ထည့်နိုင်သော်လည်း အမှန်တကယ်ဖြတ်ရာတွင် video frame အလိုက် အနီးဆုံးအချိန်ဖြစ်နိုင်သည်။</div>
+<div id="segments"></div>
+<div class="row" style="margin-top:10px">
+<button id="addBtn" class="secondary" type="button">＋ အပိုင်းထပ်ထည့်ရန်</button>
+<button id="previewBtn" class="secondary" type="button" disabled>▶ ပထမအပိုင်း Preview</button>
+</div>
+<div class="status" id="validation"></div>
+</section>
+<section class="panel">
+<h2>၃။ Output နဲ့ Save နည်းလမ်းရွေးပါ</h2>
+<div class="field"><label>ဖိုင်အမည် ရှေ့စာလုံး</label><input id="prefix" type="text" value="cut" maxlength="50"></div>
+<div class="choice">
+<label><input type="radio" name="saveMode" value="downloads" checked><span><b>Downloads ဖိုလ်ဒါထဲ သိမ်းမယ်</b><br><span class="muted">Browser က ဖိုင်ကို Download လုပ်ပေးမယ်။ Android Chrome မှာ Downloads ထဲကနေ Gallery/Photos သို့ ရွှေ့နိုင်ပါတယ်။</span></span></label>
+</div>
+<div class="choice">
+<label><input type="radio" name="saveMode" value="share"><span><b>Gallery / အခြား App သို့ ပို့မယ်</b><br><span class="muted">Android Share Sheet ကိုဖွင့်ပေးမယ်။ Gallery/Photos ရွေးချယ်စရာပေါ်မပေါ်က ဖုန်းနဲ့ ထည့်သွင်းထားတဲ့ App များပေါ် မူတည်ပါတယ်။</span></span></label>
+</div>
+<div class="note" style="margin-top:10px">Browser က Gallery ထဲ တိုက်ရိုက်သိမ်းခွင့်ကို အမြဲမပေးပါ။ Share Sheet မှာ Photos/Gallery မပေါ်ပါက Downloads ထဲသိမ်းပြီး Gallery app မှာ Import/Move လုပ်ပါ။</div>
+<button id="exportBtn" style="width:100%;margin-top:12px" disabled>✂️ အပိုင်းအားလုံး ဖြတ်ပြီး သိမ်းရန်</button>
+<progress id="progress" max="100" value="0" hidden></progress>
+<div class="status" id="exportStatus"></div>
+<div id="downloads"></div>
+</section>
+<section class="panel">
+<h2>Offline အသုံးပြုမှု</h2>
+<div class="status" id="offlineStatus">Offline support ကို စစ်ဆေးနေသည်…</div>
+<ul class="muted">
+<li>ပထမဆုံးအကြိမ် App ကို Internet ရှိချိန်မှာ ဖွင့်ထားပြီး Cache ပြီးသွားမှ Offline ပြန်သုံးနိုင်ပါမည်။</li>
+<li>Browser ရဲ့ MediaRecorder ကိုသုံးထားသောကြောင့် output သည် WebM ဖြစ်နိုင်သည်။ MP4 မူရင်း format ကို မထိန်းထားနိုင်ပါ။</li>
+<li>Browser က video capture မပံ့ပိုးလျှင် သို့မဟုတ် ဖိုင်ကြီးလွန်းလျှင် ဖြတ်တောက်မှု မအောင်မြင်နိုင်ပါ။</li>
+</ul>
+</section>
+</main>
+<script>
+(() => {
+const $=id=>document.getElementById(id), video=$('preview'), segments=$('segments');
+let file=null, objectUrl=null, seq=0;
+const fmt=s=>{let ms=Math.round(Math.max(0,s)*1000),m=ms%1000,t=Math.floor(ms/1000),ss=t%60,mm=Math.floor(t/60)%60,hh=Math.floor(t/3600);return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}.${String(m).padStart(3,'0')}`};
+function parse(v){let m=String(v).trim().match(/^(?:(\d+):)?(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?$/);if(!m)return NaN;let h=+(m[1]||0),mi=+m[2],s=+m[3],ms=+((m[4]||'').padEnd(3,'0')||0);if(mi>59||s>59)return NaN;return h*3600+mi*60+s+ms/1000}
+function addSegment(start=0,end=5){seq++;let el=document.createElement('div');el.className='segment';el.innerHTML=`<div class="seghead"><b>အပိုင်း ${seq}</b><button type="button" class="secondary small remove">ဖယ်ရှား</button></div><div class="fields"><div class="field"><label>Start</label><input class="start" type="text" inputmode="decimal" value="${fmt(start)}"></div><div class="field"><label>End</label><input class="end" type="text" inputmode="decimal" value="${fmt(end)}"></div></div><div class="muted duration"></div>`;segments.appendChild(el);el.querySelector('.remove').onclick=()=>{el.remove();renumber();validate()};el.querySelectorAll('input').forEach(x=>x.addEventListener('input',validate));validate()}
+function renumber(){[...segments.children].forEach((el,i)=>el.querySelector('b').textContent=`အပိုင်း ${i+1}`);seq=segments.children.length}
+function list(){return [...segments.children].map((el,i)=>({el,i,start:parse(el.querySelector('.start').value),end:parse(el.querySelector('.end').value)}))}
+function validate(){let errors=[],a=list();a.forEach(s=>{let d=s.end-s.start;s.el.querySelector('.duration').textContent=Number.isFinite(d)&&d>0?'ကြာချိန်: '+fmt(d):'';if(!Number.isFinite(s.start)||!Number.isFinite(s.end))errors.push(`အပိုင်း ${s.i+1}: အချိန်ပုံစံမှားနေသည်။`);else if(s.start<0||s.end<=s.start)errors.push(`အပိုင်း ${s.i+1}: End သည် Start ထက်ကြီးရမည်။`);else if(Number.isFinite(video.duration)&&s.end>video.duration)errors.push(`အပိုင်း ${s.i+1}: Video ကြာချိန်ထက်ကျော်နေသည်။`)});$('validation').textContent=errors.join('\n');$('exportBtn').disabled=!file||!a.length||!!errors.length;$('previewBtn').disabled=!file||!a.length||!!errors.length;return !errors.length&&!!a.length}
+$('videoFile').onchange=()=>{let f=$('videoFile').files?.[0];if(!f)return;file=f;if(objectUrl)URL.revokeObjectURL(objectUrl);objectUrl=URL.createObjectURL(f);video.src=objectUrl;video.load();$('fileInfo').textContent=`${f.name} · ${(f.size/1048576).toFixed(2)} MB`;validate()};
+video.onloadedmetadata=()=>{$('fileInfo').textContent=`${file.name} · ${(file.size/1048576).toFixed(2)} MB · ကြာချိန် ${fmt(video.duration)}`;validate()};
+$('clearBtn').onclick=()=>{video.pause();file=null;$('videoFile').value='';video.removeAttribute('src');video.load();if(objectUrl)URL.revokeObjectURL(objectUrl);objectUrl=null;$('fileInfo').textContent='Video မရွေးရသေးပါ။';$('downloads').innerHTML='';$('exportStatus').textContent='';validate()};
+$('addBtn').onclick=()=>{let s=video.currentTime||0;addSegment(s,Math.min(s+5,Number.isFinite(video.duration)?video.duration:s+5))};
+$('previewBtn').onclick=()=>{if(!validate())return;let s=list()[0];video.pause();video.currentTime=s.start;video.addEventListener('seeked',function once(){video.removeEventListener('seeked',once);video.play().catch(()=>{});let timer=setInterval(()=>{if(video.currentTime>=s.end){video.pause();clearInterval(timer)}},25)},{once:true})};
+const delay=ms=>new Promise(r=>setTimeout(r,ms));
+async function exportOne(s,index,total){
+ return new Promise(async(resolve,reject)=>{
+  let stream=null,chunks=[],timer=null;
+  try{
+   let capture=video.captureStream||video.mozCaptureStream;if(!capture)throw Error('ဒီ Browser က video capture မပံ့ပိုးပါ။ Chrome နောက်ဆုံးဗားရှင်းဖြင့် စမ်းပါ။');
+   video.pause();video.currentTime=s.start;
+   await new Promise(res=>{let done=false;const to=setTimeout(()=>{if(!done){done=true;res()}},1200);video.addEventListener('seeked',()=>{if(!done){done=true;clearTimeout(to);res()}},{once:true})});
+   stream=capture.call(video);
+   let types=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'],mime=types.find(t=>MediaRecorder.isTypeSupported(t))||'';
+   let rec=new MediaRecorder(stream,{...(mime?{mimeType:mime}:{}),videoBitsPerSecond:5000000});
+   rec.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data)};
+   rec.onerror=e=>reject(e.error||Error('Recording error'));
+   rec.onstop=async()=>{
+    clearTimeout(timer);stream.getTracks().forEach(t=>t.stop());
+    let blob=new Blob(chunks,{type:rec.mimeType||'video/webm'});if(blob.size<1000){reject(Error('ဖိုင်ထွက်မလာပါ။ Browser က capture မပံ့ပိုးနိုင်ပါ။'));return}
+    let name=(($('prefix').value.trim().replace(/[^a-zA-Z0-9_-]+/g,'-'))||'cut')+'-'+String(index).padStart(2,'0')+'.webm';
+    try{
+      const mode=document.querySelector('input[name="saveMode"]:checked').value;
+      if(mode==='share' && navigator.canShare && navigator.share){
+        const f=new File([blob],name,{type:blob.type});
+        if(navigator.canShare({files:[f]})){
+          try{await navigator.share({files:[f],title:name,text:'Video Cutter မှ ဖြတ်ထားသောဖိုင်'});$('exportStatus').textContent=`အပိုင်း ${index}/${total}: Share Sheet ဖွင့်ပြီးပါပြီ။`;resolve();return}
+          catch(err){if(err.name==='AbortError'){$('exportStatus').textContent='Share ကို ပယ်ဖျက်လိုက်သည်။';resolve();return}}
+        }
+      }
+      const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.className='download';a.textContent=`⬇️ ${name} (${(blob.size/1048576).toFixed(2)} MB) — Download`;a.onclick=()=>setTimeout(()=>URL.revokeObjectURL(url),60000);$('downloads').appendChild(a);a.click();
+      $('exportStatus').textContent=`အပိုင်း ${index}/${total}: Download စတင်ပါပြီ.${mode==='share'?' Share Sheet မရသောကြောင့် Downloads ကို အသုံးပြုထားသည်.':''}`;
+      resolve();
+    }catch(err){reject(err)}
+   };
+   rec.start(200);await video.play();
+   const tick=()=>{let pct=((index-1)+Math.max(0,Math.min(1,(video.currentTime-s.start)/(s.end-s.start))))/total*100;$('progress').value=pct;$('exportStatus').textContent=`ဖြတ်နေသည်: ${index}/${total} · ${fmt(Math.max(0,video.currentTime-s.start))} / ${fmt(s.end-s.start)}`;if(video.currentTime>=s.end||video.ended){video.pause();if(rec.state!=='inactive')rec.stop();return}timer=setTimeout(tick,20)};
+   timer=setTimeout(tick,20);
+  }catch(e){if(stream)stream.getTracks().forEach(t=>t.stop());reject(e)}
+ });
+}
+$('exportBtn').onclick=async()=>{if(!validate())return;let a=list();$('exportBtn').disabled=true;$('addBtn').disabled=true;$('progress').hidden=false;$('progress').value=0;$('downloads').innerHTML='';try{for(let i=0;i<a.length;i++){await exportOne(a[i],i+1,a.length);if(i<a.length-1)await delay(300)}$('progress').value=100;$('exportStatus').textContent+='\\nပြီးပါပြီ။';}catch(e){$('exportStatus').textContent='မအောင်မြင်ပါ: '+(e.message||String(e))}finally{video.pause();$('addBtn').disabled=false;validate()}};
+if('serviceWorker' in navigator){window.addEventListener('load',async()=>{try{await navigator.serviceWorker.register('./sw.js');$('offlineStatus').textContent='Offline cache စတင်တပ်ဆင်ထားသည်။ ပထမဆုံးအကြိမ် Internet ရှိချိန်တွင် App ကိုဖွင့်ပြီး ခဏစောင့်ပါ။'}catch(e){$('offlineStatus').textContent='Offline cache မတပ်ဆင်နိုင်ပါ။ HTTPS သို့မဟုတ် localhost လိုအပ်သည်။'}})}else{$('offlineStatus').textContent='ဒီ Browser တွင် Service Worker မပံ့ပိုးပါ။'}
+addSegment(0,5);
+})();
+</script>
+</body>
+</html>
